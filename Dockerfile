@@ -14,7 +14,7 @@ COPY --from=build  /go/src/tasky/tasky .
 COPY --from=build  /go/src/tasky/assets ./assets
 
 # Adding wizexercise.txt to /app directory inside image
-CPOY wizexercise.tct /app/wizexercise.txt
+COPY wizexercise.tct /app/wizexercise.txt
 
 EXPOSE 8080
 ENTRYPOINT ["/app/tasky"]
