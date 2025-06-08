@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  PORT: "8080"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: storage-key
+type: Opaque
+data:
+  AZURE_STORAGE_KEY: M0hEQmtzUnVoa0hvS3IxNkRYVmtodU51K0RPVHVxTXhWa25HbktXR1F4cWh2ZE9jaU9BM0F5U1haT0RxT21GUXFVbWloZlllMzlXK0FTdERENmc4dz09
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+type: Opaque
+data:
+  SECRET_KEY: c2VjcmV0MTIz  # base64 for 'secret123'
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wiz-demo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wiz-demo-app
+  template:
+    metadata:
+      labels:
+        app: wiz-demo-app
+    spec:
+      containers:
+      - name: wiz-demo-app
+        image: wiztaskyacr.azurecr.io/tasky:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: AZURE_STORAGE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: storage-key
+              key: AZURE_STORAGE_KEY
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: PORT
+        - name: MONGODB_URI
+          value: "mongodb://wizuser:Sk0le0st@10.0.0.4:27017"
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secret
+              key: SECRET_KEY
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wiz-demo-app-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: wiz-demo-app
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
