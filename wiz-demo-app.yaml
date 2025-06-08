@@ -40,7 +40,7 @@ spec:
     spec:
       containers:
       - name: wiz-demo-app
-        image: wiztaskyacr.azurecr.io/tasky:latest
+        image: wiztaskyacr.azurecr.io/wiztasky:v2-with-textfile
         ports:
         - containerPort: 8080
         env:
