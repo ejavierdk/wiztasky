@@ -1,0 +1,22 @@
+ssh over 22 to linux vm
+
+check linux and mongo version
+
+show vm account permissions in azure
+
+list object storage container content
+
+https://tfwizstoragejavierlab.blob.core.windows.net/tf-backups?restype=container&comp=list
+
+az storage blob list --account-name tfwizstoragejavierlab --container-name tf-backups --output table
+
+https://tfwizstoragejavierlab.blob.core.windows.net/tf-backups/test.txt
+
+access containerized application url
+
+confirm wizexercise file is in image and in application
+
+confirm cluster and vm are in same network
+
+show permissive cluster privileges
+

@@ -7,7 +7,7 @@ resource "azurerm_storage_account" "tf_wiz_storage" {
 }
 
 resource "azurerm_storage_container" "tf_backups" {
-  name                 = "tf-backups"
+  name                 = "backups"
   storage_account_id   = azurerm_storage_account.tf_wiz_storage.id
   container_access_type = "container"
 }

@@ -1,0 +1,25 @@
+graph LR
+    %% External GitHub
+    GH[GitHub Repo - wiztasky source]
+    Push[Push image to ACR]
+
+    %% Resource Group container
+    subgraph wiz-test-rg
+        %% PaaS resources outside VNet
+        ACR[Azure Container Registry - wiztaskyacr]
+        Blob[Azure Blob Storage - wizstorage]
+
+        %% VNet with AKS and MongoDB
+        subgraph Virtual_Network
+            AKS[AKS Cluster - wiz-aks-cluster]
+            LB[LoadBalancer Service\nPublic IP: 135.237.61.107]
+            Mongo[MongoDB VM\n51.8.117.117]
+        end
+    end
+
+    %% Flow connections
+    GH --> Push --> ACR
+    ACR --> AKS
+    AKS --> LB
+    AKS --> Mongo
+    AKS --> Blob

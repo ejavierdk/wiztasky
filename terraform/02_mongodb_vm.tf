@@ -91,6 +91,7 @@ resource "azurerm_linux_virtual_machine" "tf_mongo_vm" {
     set -x
     exec > /var/log/custom-data.log 2>&1
 
+    # Install MongoDB
     apt-get update
     apt-get install -y gnupg curl
     wget -qO - https://www.mongodb.org/static/pgp/server-4.4.asc | apt-key add -
@@ -101,16 +102,30 @@ resource "azurerm_linux_virtual_machine" "tf_mongo_vm" {
     systemctl enable mongod
     systemctl restart mongod
 
+    # Create MongoDB users
     until mongo --eval "print(\"waited for connection\")"
     do
       sleep 5
     done
-
     mongo admin --eval 'db.createUser({user:"admin", pwd:"Sk0le0st", roles:[{role:"root", db:"admin"}]})'
     mongo admin --eval 'db.createUser({user:"wizuser", pwd:"Sk0le0st", roles:[{role:"readWriteAnyDatabase", db:"admin"}]})'
-
   EOT
   )
+}
+
+// Azure CLI installation via Custom Script Extension
+resource "azurerm_virtual_machine_extension" "install_azure_cli" {
+  name                 = "installAzureCli"
+  virtual_machine_id   = azurerm_linux_virtual_machine.tf_mongo_vm.id
+  publisher            = "Microsoft.Azure.Extensions"
+  type                 = "CustomScript"
+  type_handler_version = "2.1"
+
+  settings = <<SETTINGS
+{
+  "commandToExecute": "curl -sL https://aka.ms/InstallAzureCLIDeb | bash"
+}
+SETTINGS
 }
 
 resource "azurerm_role_assignment" "tf_mongo_vm_owner" {
@@ -119,6 +134,7 @@ resource "azurerm_role_assignment" "tf_mongo_vm_owner" {
   principal_id         = azurerm_linux_virtual_machine.tf_mongo_vm.identity[0].principal_id
 
   depends_on = [
-    azurerm_linux_virtual_machine.tf_mongo_vm
+    azurerm_linux_virtual_machine.tf_mongo_vm,
+    azurerm_virtual_machine_extension.install_azure_cli
   ]
 }
