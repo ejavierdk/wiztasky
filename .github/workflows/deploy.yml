@@ -1,0 +1,59 @@
+name: Build & Deploy to AKS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --file Dockerfile \
+            --tag ${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest \
+            .
+
+      - name: Push to ACR
+        run: |
+          echo ${{ secrets.ACR_PASSWORD }} \
+            | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
+              --username ${{ secrets.ACR_USERNAME }} --password-stdin
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout infra repo
+        uses: actions/checkout@v3
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group tf-wiz-test-rg \
+            --name tf-wiz-aks \
+            --file kubeconfig \
+            --overwrite-existing
+
+      - name: Deploy to AKS
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl set image deployment/tasky \
+            tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          kubectl rollout status deployment/tasky
