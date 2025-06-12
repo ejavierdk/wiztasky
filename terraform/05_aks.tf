@@ -72,8 +72,9 @@ data "azurerm_kubernetes_cluster" "cluster" {
 }
 
 provider "kubernetes" {
-  config_path = "./kubeconfig"
+  config_path = "${path.module}/kubeconfig"
 }
+
 
 
 // Permissive RBAC binding

@@ -1,18 +1,38 @@
-ssh over 22 to linux vm
+ssh over 22 to linux vm, check linux and mongo version
 
-check linux and mongo version
+ ssh wizuser@51.8.117.117
+ mongod -version
+
+sudo grep -R -E 'security|authorization' /etc/mongod.conf
+clearmongo --quiet --eval 'db.runCommand({ listDatabases: 1 })'
+
+show scheduled cron job
+crontab -l
+
+show backup script
+cat /home/wizuser/backup_mongo_to_blob.sh
 
 show vm account permissions in azure
 
+az vm show --resource-group wiz-test-rg --name mongo-vm --query identity.principalId -o tsv
+
+
 list object storage container content
 
-https://tfwizstoragejavierlab.blob.core.windows.net/tf-backups?restype=container&comp=list
+https://wizstoragejavierlab.blob.core.windows.net/backups?restype=container&comp=list
 
 az storage blob list --account-name tfwizstoragejavierlab --container-name tf-backups --output table
 
 https://tfwizstoragejavierlab.blob.core.windows.net/tf-backups/test.txt
 
 access containerized application url
+
+http://http://135.237.61.107/
+
+cluster and vm in same subnet
+get vm ip: Get VM NIC resource ID
+VM_NIC_ID=$(az vm show --resource-group wiz-test-rg --name mongo-vm --query "networkProfile.networkInterfaces[0].id" -o tsv)
+
 
 confirm wizexercise file is in image and in application
 
