@@ -24,10 +24,7 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
-          docker build \
-            --file repo/Dockerfile \
-            --tag $IMAGE \
-            repo
+          docker build --file repo/Dockerfile --tag $IMAGE repo
 
       - name: Push Docker image
         run: |
@@ -43,29 +40,21 @@ jobs:
         with:
           path: infra
 
-      - name: Azure CLI login
-        run: |
-          az login --service-principal \
-            -u ${{ secrets.AZURE_CLIENT_ID }} \
-            -p ${{ secrets.AZURE_CLIENT_SECRET }} \
-            --tenant ${{ secrets.AZURE_TENANT_ID }}
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Display subscription context
-        run: |
-          az account show --query "{name:name, user:user.name, subs:id}" -o json
-
-      - name: Get AKS credentials
-        run: |
-          az aks get-credentials \
-            --resource-group tf-wiz-test-rg \
-            --name tf-wiz-aks \
-            --file infra/kubeconfig \
-            --overwrite-existing
+      - name: Set AKS context
+        uses: azure/aks-set-context@v2
+        with:
+          subscription:   ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group: tf-wiz-test-rg
+          cluster-name:   tf-wiz-aks
 
       - name: Deploy to AKS
         env:
-          KUBECONFIG: infra/kubeconfig
+          KUBECONFIG: ~/.kube/config
         run: |
-          kubectl set image deployment/tasky \
-            tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          kubectl set image deployment/tasky tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
           kubectl rollout status deployment/tasky --timeout=120s
