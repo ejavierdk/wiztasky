@@ -1,4 +1,4 @@
-name: Build & Deploy to AKS
+name: Build & Deploy to AKS with Existing wizexercise.txt
 
 on:
   push:
@@ -11,32 +11,48 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          path: repo
+      
+      - name: Verify repo contents
+        run: |
+          ls -R repo
+          cat repo/Dockerfile | grep COPY wizexercise.txt
+
 
       - name: Log in to Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Log in to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
       - name: Build Docker image
         run: |
-          docker build \
-            --file Dockerfile \
-            --tag ${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest \
-            .
+          IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          docker build \ 
+            --file repo/Dockerfile \ 
+            --tag $IMAGE \ 
+            repo
 
-      - name: Push to ACR
+      - name: Push Docker image
         run: |
-          echo ${{ secrets.ACR_PASSWORD }} \
-            | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
-              --username ${{ secrets.ACR_USERNAME }} --password-stdin
-          docker push ${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          docker push $IMAGE
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout infra repo
+      - name: Checkout infra code
         uses: actions/checkout@v3
+        with:
+          path: infra
 
       - name: Log in to Azure
         uses: azure/login@v1
@@ -48,12 +64,12 @@ jobs:
           az aks get-credentials \
             --resource-group tf-wiz-test-rg \
             --name tf-wiz-aks \
-            --file kubeconfig \
+            --file infra/kubeconfig \
             --overwrite-existing
 
       - name: Deploy to AKS
         run: |
-          export KUBECONFIG=kubeconfig
+          export KUBECONFIG=infra/kubeconfig
           kubectl set image deployment/tasky \
             tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
-          kubectl rollout status deployment/tasky
+          kubectl rollout status deployment/tasky --timeout=120s

@@ -36,6 +36,19 @@ VM_NIC_ID=$(az vm show --resource-group wiz-test-rg --name mongo-vm --query "net
 
 confirm wizexercise file is in image and in application
 
+az aks get-credentials \
+  --resource-group tf-wiz-test-rg \
+  --name tf-wiz-aks \
+  --overwrite-existing
+
+# Get the name of one Tasky pod
+POD=$(kubectl get pods -l app=tasky -o jsonpath='{.items[0].metadata.name}')
+
+# Exec into the pod and print wizexercise.txt
+kubectl exec -it $POD -- cat /app/wizexercise.txt
+
+
+
 confirm cluster and vm are in same network
 
 show permissive cluster privileges
