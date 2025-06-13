@@ -51,4 +51,21 @@ jobs:
             --tenant ${{ secrets.AZURE_TENANT_ID }}
 
       - name: Display subscription context
-        run: az account show --query '{name:name, user:user.name, subs: id}' -o json
+        run: |
+          az account show --query "{name:name, user:user.name, subs:id}" -o json
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group tf-wiz-test-rg \
+            --name tf-wiz-aks \
+            --file infra/kubeconfig \
+            --overwrite-existing
+
+      - name: Deploy to AKS
+        env:
+          KUBECONFIG: infra/kubeconfig
+        run: |
+          kubectl set image deployment/tasky \
+            tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          kubectl rollout status deployment/tasky --timeout=120s
