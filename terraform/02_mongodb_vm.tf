@@ -31,7 +31,8 @@ resource "azurerm_network_security_group" "tf_mongo_nsg" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "27017"
-    source_address_prefix      = "*"
+    # Only allow from the default subnet (where your AKS agent pool lives)
+    source_address_prefix      = azurerm_subnet.default.address_prefixes[0]
     destination_address_prefix = "*"
   }
 }
@@ -91,29 +92,46 @@ resource "azurerm_linux_virtual_machine" "tf_mongo_vm" {
     set -x
     exec > /var/log/custom-data.log 2>&1
 
-    # Install MongoDB
+    # --- MongoDB install ---
     apt-get update
-    apt-get install -y gnupg curl
+    apt-get install -y gnupg curl ca-certificates apt-transport-https
     wget -qO - https://www.mongodb.org/static/pgp/server-4.4.asc | apt-key add -
-    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-4.4.list
+    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse" \
+      | tee /etc/apt/sources.list.d/mongodb-org-4.4.list
     apt-get update
     apt-get install -y mongodb-org
     sed -i 's/bindIp: 127.0.0.1/bindIp: 0.0.0.0/' /etc/mongod.conf
     systemctl enable mongod
     systemctl restart mongod
 
-    # Create MongoDB users
-    until mongo --eval "print(\"waited for connection\")"
-    do
-      sleep 5
-    done
+    # --- MongoDB users ---
+    until mongo --eval "print(\"waited for connection\")"; do sleep 5; done
     mongo admin --eval 'db.createUser({user:"admin", pwd:"Sk0le0st", roles:[{role:"root", db:"admin"}]})'
     mongo admin --eval 'db.createUser({user:"wizuser", pwd:"Sk0le0st", roles:[{role:"readWriteAnyDatabase", db:"admin"}]})'
+
+    # --- Cron for backups at 2am daily ---
+    cat <<CRON >/etc/cron.d/mongo_backup
+    0 2 * * * wizuser /opt/mongo-backup/backup_mongo_to_blob.sh >> /var/log/mongo-backup.log 2>&1
+    CRON
+    chmod 644 /etc/cron.d/mongo_backup
+    systemctl restart cron
+
+    # --- Install Azure CLI for in-VM az commands ---
+    # Import Microsoft signing key
+    curl -sL https://packages.microsoft.com/keys/microsoft.asc \
+      | gpg --dearmor \
+      | tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
+    # Add the Azure CLI apt repo
+    echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ focal main" \
+      | tee /etc/apt/sources.list.d/azure-cli.list
+    apt-get update
+    apt-get install -y azure-cli
+
   EOT
   )
 }
 
-// Azure CLI installation via Custom Script Extension
+/*/ Azure CLI installation via Custom Script Extension
 resource "azurerm_virtual_machine_extension" "install_azure_cli" {
   name                 = "installAzureCli"
   virtual_machine_id   = azurerm_linux_virtual_machine.tf_mongo_vm.id
@@ -127,6 +145,7 @@ resource "azurerm_virtual_machine_extension" "install_azure_cli" {
 }
 SETTINGS
 }
+*/
 
 resource "azurerm_role_assignment" "tf_mongo_vm_owner" {
   scope                = azurerm_resource_group.wiz_test_rg.id
@@ -135,6 +154,6 @@ resource "azurerm_role_assignment" "tf_mongo_vm_owner" {
 
   depends_on = [
     azurerm_linux_virtual_machine.tf_mongo_vm,
-    azurerm_virtual_machine_extension.install_azure_cli
+    #azurerm_virtual_machine_extension.install_azure_cli
   ]
 }

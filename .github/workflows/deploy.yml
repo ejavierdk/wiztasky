@@ -1,60 +1,51 @@
-name: Build & Deploy to AKS with Existing wizexercise.txt
+name: CI/CD Demo via ACR Tasks
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ACR_NAME:              tfwizacr17a02a
+      RESOURCE_GROUP:        tf-wiz-test-rg
+      AKS_NAME:              tf-wiz-aks
+
     steps:
-      - name: Checkout application code
+      - name: Checkout
         uses: actions/checkout@v3
-        with:
-          path: repo
 
-      - name: Log in to ACR
-        uses: azure/docker-login@v1
-        with:
-          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
-          username:     ${{ secrets.ACR_USERNAME }}
-          password:     ${{ secrets.ACR_PASSWORD }}
-
-      - name: Build Docker image
+      - name: Login to Azure CLI
         run: |
-          IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
-          docker build --file repo/Dockerfile --tag $IMAGE repo
+          az login --service-principal \
+            -u $AZURE_CLIENT_ID \
+            -p $AZURE_CLIENT_SECRET \
+            --tenant $AZURE_TENANT_ID
+          az account set --subscription $AZURE_SUBSCRIPTION_ID
 
-      - name: Push Docker image
+      - name: Build & push via ACR Tasks
         run: |
-          IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
-          docker push $IMAGE
+          az acr build \
+            --registry $ACR_NAME \
+            --image tasky:with-txt \
+            --file Dockerfile \
+            .
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout infrastructure code
-        uses: actions/checkout@v3
-        with:
-          path: infra
-
-      - name: Log in to Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Set AKS context
-        uses: azure/aks-set-context@v2
-        with:
-          subscription:   ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          resource-group: tf-wiz-test-rg
-          cluster-name:   tf-wiz-aks
-
-      - name: Deploy to AKS
-        env:
-          KUBECONFIG: ~/.kube/config
+      - name: Get AKS creds
         run: |
-          kubectl set image deployment/tasky tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          az aks get-credentials \
+            --resource-group $RESOURCE_GROUP \
+            --name $AKS_NAME \
+            --overwrite-existing
+
+      - name: Roll out deployment
+        run: |
+          kubectl set image deployment/tasky \
+            tasky=$ACR_NAME.azurecr.io/tasky:with-txt \
+            --record
           kubectl rollout status deployment/tasky --timeout=120s

@@ -1,55 +1,100 @@
-ssh over 22 to linux vm, check linux and mongo version
-
- ssh wizuser@51.8.117.117
- mongod -version
-
-sudo grep -R -E 'security|authorization' /etc/mongod.conf
-clearmongo --quiet --eval 'db.runCommand({ listDatabases: 1 })'
-
-show scheduled cron job
-crontab -l
-
-show backup script
-cat /home/wizuser/backup_mongo_to_blob.sh
-
-show vm account permissions in azure
-
-az vm show --resource-group wiz-test-rg --name mongo-vm --query identity.principalId -o tsv
+webapp http://172.212.115.54
 
 
-list object storage container content
-
-https://wizstoragejavierlab.blob.core.windows.net/backups?restype=container&comp=list
-
-az storage blob list --account-name tfwizstoragejavierlab --container-name tf-backups --output table
-
-https://tfwizstoragejavierlab.blob.core.windows.net/tf-backups/test.txt
-
-access containerized application url
-
-http://http://135.237.61.107/
-
-cluster and vm in same subnet
-get vm ip: Get VM NIC resource ID
-VM_NIC_ID=$(az vm show --resource-group wiz-test-rg --name mongo-vm --query "networkProfile.networkInterfaces[0].id" -o tsv)
 
 
-confirm wizexercise file is in image and in application
+linux / mongo version / backups 
+az network public-ip list \
+  --resource-group tf-wiz-test-rg \
+  --query "[?contains(name, 'tf-mongo-pip')].ipAddress" \
+  --output tsv
+
+ssh -i ~/.ssh/id_rsa wizuser@172.206.197.237
+
+lsb_release -a
+mongod --version
+
+backup script
+sudo cat /opt/mongo-backup/backup_mongo_to_blob.sh
+
+sudo ls -l /etc/cron.d/mongo_backup
+sudo cat /etc/cron.d/mongo_backup
+
+--
+
+show vm managed identity permissions
+
+PRINCIPAL_ID=$(az vm identity show \
+  --resource-group tf-wiz-test-rg \
+  --name tf-mongo-vm \
+  --query principalId -o tsv)
+
+az role assignment list \
+  --assignee $PRINCIPAL_ID \
+  --all \
+  --output table
+
+
+--
+
+show firewall rules for ssh and mongo
+
+az network nsg rule list --resource-group tf-wiz-test-rg --nsg-name tf-mongo-nsg --output table
+
+---
+
+blob storage
+
+https://tfwizstoragejavierlab.blob.core.windows.net/backups?restype=container&comp=list
+
+curl -O "https://tfwizstoragejavierlab.blob.core.windows.net/backups/backup-all-mongodb-202506111054.gz"
+
+
+--
+
+kubernetes cluster network
+
+VM_SUBNET_ID=$(az network nic show \
+  --resource-group tf-wiz-test-rg \
+  --name tf-mongo-nic \
+  --query "ipConfigurations[0].subnet.id" \
+  -o tsv)
+
+AKS_SUBNET_ID=$(az aks show \
+  --resource-group tf-wiz-test-rg \
+  --name tf-wiz-aks \
+  --query "agentPoolProfiles[0].vnetSubnetId" \
+  -o tsv)
+
+echo "VM Subnet ID : $VM_SUBNET_ID"
+echo "AKS Subnet ID: $AKS_SUBNET_ID"
+
+---
+
+cluster rbac
 
 az aks get-credentials \
   --resource-group tf-wiz-test-rg \
   --name tf-wiz-aks \
-  --overwrite-existing
+  --overwrite-existing \
+  --file ./kubeconfig
 
-# Get the name of one Tasky pod
+export KUBECONFIG=./kubeconfig
+
+kubectl get clusterrolebinding permissive-binding -o yaml
+
+kubectl auth can-i list pods --as system:anonymous
+kubectl auth can-i create deployments --as system:anonymous
+
+---
+
+wizexercise.txt
+
 POD=$(kubectl get pods -l app=tasky -o jsonpath='{.items[0].metadata.name}')
-
-# Exec into the pod and print wizexercise.txt
+kubectl exec -it $POD -- ls -l /app/
 kubectl exec -it $POD -- cat /app/wizexercise.txt
 
 
 
-confirm cluster and vm are in same network
 
-show permissive cluster privileges
 
