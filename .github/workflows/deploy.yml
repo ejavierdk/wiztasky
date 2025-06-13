@@ -25,7 +25,6 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       - name: Log in to ACR
         uses: azure/docker-login@v1
