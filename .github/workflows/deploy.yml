@@ -12,7 +12,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          path: repo
 
       - name: Log in to ACR
         uses: azure/docker-login@v1
