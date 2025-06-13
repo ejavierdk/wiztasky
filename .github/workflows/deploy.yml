@@ -43,23 +43,25 @@ jobs:
         with:
           path: infra
 
-      - name: Set AKS context
-        uses: azure/aks-set-context@v2
-        with:
-          subscription: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          resource-group: tf-wiz-test-rg
-          cluster-name: tf-wiz-aks
+      - name: Azure CLI login
+        run: |
+          az login --service-principal \
+            -u ${{ secrets.AZURE_CLIENT_ID }} \
+            -p ${{ secrets.AZURE_CLIENT_SECRET }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group tf-wiz-test-rg \
+            --name tf-wiz-aks \
+            --file infra/kubeconfig \
+            --overwrite-existing
 
       - name: Deploy to AKS
+        env:
+          KUBECONFIG: infra/kubeconfig
         run: |
-          export KUBECONFIG=~/.kube/config
-          kubectl set image deployment/tasky \
-            tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
-          kubectl rollout status deployment/tasky --timeout=120s
-
-      - name: Deploy to AKS
-        run: |
-          export KUBECONFIG=~/.kube/config
           kubectl set image deployment/tasky \
             tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
           kubectl rollout status deployment/tasky --timeout=120s
