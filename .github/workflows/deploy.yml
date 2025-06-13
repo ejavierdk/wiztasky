@@ -56,10 +56,6 @@ jobs:
           kubectl set image deployment/tasky \
             tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
           kubectl rollout status deployment/tasky --timeout=120s
-        uses: azure/aks-set-context@v2
-        with:
-          resource-group: tf-wiz-test-rg
-          cluster-name: tf-wiz-aks
 
       - name: Deploy to AKS
         run: |
