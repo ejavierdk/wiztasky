@@ -65,3 +65,73 @@ jobs:
           kubectl set image deployment/tasky \
             tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
           kubectl rollout status deployment/tasky --timeout=120s
+name: Build & Deploy to AKS with Existing wizexercise.txt
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout application code
+        uses: actions/checkout@v3
+        with:
+          path: repo
+
+      - name: Log in to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username:     ${{ secrets.ACR_USERNAME }}
+          password:     ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build Docker image
+        run: |
+          IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          docker build \
+            --file repo/Dockerfile \
+            --tag $IMAGE \
+            repo
+
+      - name: Push Docker image
+        run: |
+          IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          docker push $IMAGE
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout infrastructure code
+        uses: actions/checkout@v3
+        with:
+          path: infra
+
+      - name: Azure CLI login
+        run: |
+          az login --service-principal \
+            -u ${{ secrets.AZURE_CLIENT_ID }} \
+            -p ${{ secrets.AZURE_CLIENT_SECRET }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Display subscription context
+        run: az account show --query "{name:name, user:user.name, subs: id}" -o json
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group tf-wiz-test-rg \
+            --name tf-wiz-aks \
+            --file infra/kubeconfig \
+            --overwrite-existing
+
+      - name: Deploy to AKS
+        env:
+          KUBECONFIG: infra/kubeconfig
+        run: |
+          kubectl set image deployment/tasky \
+            tasky=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
+          kubectl rollout status deployment/tasky --timeout=120s
