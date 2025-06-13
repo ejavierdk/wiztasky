@@ -16,9 +16,10 @@ jobs:
       
       - name: Verify repo contents
         run: |
+          echo "Contents of repo root:"
           ls -R repo
-          cat repo/Dockerfile | grep COPY wizexercise.txt
-
+          echo "Checking Dockerfile for wizexercise.txt copy:"
+          grep -Hn "COPY wizexercise.txt" repo/Dockerfile || true
 
       - name: Log in to Azure
         uses: azure/login@v1
@@ -35,9 +36,9 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/tasky:latest
-          docker build \ 
-            --file repo/Dockerfile \ 
-            --tag $IMAGE \ 
+          docker build \
+            --file repo/Dockerfile \
+            --tag $IMAGE \
             repo
 
       - name: Push Docker image
